@@ -1,0 +1,547 @@
+00 { 0-Byte Prgm }
+@ ============================================================
+@ UNCERTAINTY PROPAGATION FOR HP-42S / FREE42 / PLUS42
+@ ============================================================
+@ Complex number format: value + i×uncertainty
+@ Example: 5.0 ± 0.3 is stored as 5.0 + 0.3i
+@
+@ VERIFIED FORMULAS (from calculus - partial derivatives):
+@ σ_f = |∂f/∂x| × σ_x
+@
+@ Add/Sub:  σ = √(σ₁² + σ₂²)
+@ Mul/Div:  σ = |result| × √((σ₁/v₁)² + (σ₂/v₂)²)
+@ x²:       σ = |2v| × σ
+@ √x:       σ = σ / (2√v)
+@ 1/x:      σ = σ / v²
+@ ln(x):    σ = σ / v
+@ e^x:      σ = e^v × σ
+@ sin(x):   σ = |cos(v)| × σ × (π/180 if DEG mode)
+@ cos(x):   σ = |sin(v)| × σ × (π/180 if DEG mode)
+@ tan(x):   σ = σ / cos²(v) × (π/180 if DEG mode)
+@ log(x):   σ = σ / (v × ln(10))
+@ 10^x:     σ = ln(10) × 10^v × σ
+@ x^y:      σ = |result| × √((y×σₓ/x)² + (ln(x)×σᵧ)²)
+@ ============================================================
+
+@ ————————————————————
+@ HELPER: Angle mode conversion
+@ Multiplies X by π/180 if in DEG mode, leaves unchanged if RAD
+@ ————————————————————
+01▸LBL “UACV”
+02 STO “TC”
+03 0.5
+04 ASIN
+05 30
+06 -
+07 ABS
+08 0.001
+09 X<Y?
+10 GTO 00
+11 RCL “TC”
+12 RTN
+13▸LBL 00
+14 PI
+15 180
+16 ÷
+17 RCL× “TC”
+18 RTN
+
+@ ————————————————————
+@ UEN: Encode value±uncertainty as complex number
+@ Input: Y = value, X = uncertainty
+@ Output: X = value + i×uncertainty
+@ ————————————————————
+19▸LBL “UEN”
+20 FUNC 21
+21 COMPLEX
+22 RTN
+
+@ ————————————————————
+@ UVW: View uncertainty value (display formatted)
+@ Input: X = complex (value + i×uncertainty)
+@ Output: X = same complex, displays “value+/-uncertainty”
+@ ————————————————————
+23▸LBL “UVW”
+24 FUNC 11
+25 COMPLEX
+26 X<>Y
+27 CLA
+28 ARCL ST X
+29 ├”+/-”
+30 ARCL ST Y
+31 AVIEW
+32 X<>Y
+33 COMPLEX
+34 RTN
+
+@ ————————————————————
+@ USPL: Split complex into value and uncertainty
+@ Input: X = complex (value + i×uncertainty)
+@ Output: Y = value, X = uncertainty
+@ ————————————————————
+35▸LBL “USPL”
+36 FUNC 12
+37 COMPLEX
+38 RTN
+
+@ ————————————————————
+@ UADD: Add two uncertain values
+@ Formula: σ = √(σ₁² + σ₂²)
+@ Input: Y = first, X = second (both complex)
+@ Output: X = sum with propagated uncertainty
+@ ————————————————————
+39▸LBL “UADD”
+40 FUNC 21
+41 STO “UA”
+42 X<>Y
+43 STO “UB”
+44 COMPLEX
+45 STO “U1”
+46 X<>Y
+47 STO “V1”
+48 RCL “UA”
+49 COMPLEX
+50 STO “U2”
+51 X<>Y
+52 RCL+ “V1”
+53 STO “VR”
+54 RCL “U1”
+55 X↑2
+56 RCL “U2”
+57 X↑2
+58 +
+59 SQRT
+60 RCL “VR”
+61 X<>Y
+62 COMPLEX
+63 RTN
+
+@ ————————————————————
+@ USUB: Subtract two uncertain values
+@ Formula: σ = √(σ₁² + σ₂²)
+@ Input: Y = first, X = second → computes first - second
+@ Output: X = difference with propagated uncertainty
+@ ————————————————————
+64▸LBL “USUB”
+65 FUNC 21
+66 STO “UA”
+67 X<>Y
+68 STO “UB”
+69 COMPLEX
+70 STO “U1”
+71 X<>Y
+72 STO “V1”
+73 RCL “UA”
+74 COMPLEX
+75 STO “U2”
+76 X<>Y
+77 +/-
+78 RCL+ “V1”
+79 STO “VR”
+80 RCL “U1”
+81 X↑2
+82 RCL “U2”
+83 X↑2
+84 +
+85 SQRT
+86 RCL “VR”
+87 X<>Y
+88 COMPLEX
+89 RTN
+
+@ ————————————————————
+@ UMUL: Multiply two uncertain values
+@ Formula: σ = |result| × √((σ₁/v₁)² + (σ₂/v₂)²)
+@ Input: Y = first, X = second (both complex)
+@ Output: X = product with propagated uncertainty
+@ ————————————————————
+90▸LBL “UMUL”
+91 FUNC 21
+92 STO “UA”
+93 X<>Y
+94 STO “UB”
+95 COMPLEX
+96 STO “U1”
+97 X<>Y
+98 STO “V1”
+99 RCL “UA”
+100 COMPLEX
+101 STO “U2”
+102 X<>Y
+103 STO “V2”
+104 RCL “V1”
+105 RCL× “V2”
+106 STO “VR”
+107 RCL “U1”
+108 RCL÷ “V1”
+109 X↑2
+110 RCL “U2”
+111 RCL÷ “V2”
+112 X↑2
+113 +
+114 SQRT
+115 RCL× “VR”
+116 ABS
+117 RCL “VR”
+118 X<>Y
+119 COMPLEX
+120 RTN
+
+@ ————————————————————
+@ UDIV: Divide two uncertain values
+@ Formula: σ = |result| × √((σ₁/v₁)² + (σ₂/v₂)²)
+@ Input: Y = numerator, X = denominator (both complex)
+@ Output: X = quotient with propagated uncertainty
+@ ————————————————————
+121▸LBL “UDIV”
+122 FUNC 21
+123 STO “UA”
+124 X<>Y
+125 STO “UB”
+126 COMPLEX
+127 STO “U1”
+128 X<>Y
+129 STO “V1”
+130 RCL “UA”
+131 COMPLEX
+132 STO “U2”
+133 X<>Y
+134 STO “V2”
+135 RCL “V1”
+136 RCL÷ “V2”
+137 STO “VR”
+138 RCL “U1”
+139 RCL÷ “V1”
+140 X↑2
+141 RCL “U2”
+142 RCL÷ “V2”
+143 X↑2
+144 +
+145 SQRT
+146 RCL× “VR”
+147 ABS
+148 RCL “VR”
+149 X<>Y
+150 COMPLEX
+151 RTN
+
+@ ————————————————————
+@ USQ: Square with uncertainty
+@ Formula: σ = |2v| × σ_input  (derivative of x² is 2x)
+@ Input: X = value±uncertainty (complex)
+@ Output: X = squared value with propagated uncertainty
+@ ————————————————————
+152▸LBL “USQ”
+153 FUNC 11
+154 COMPLEX
+155 STO “U”
+156 X<>Y
+157 STO “V”
+158 X↑2
+159 STO “VR”
+160 RCL “V”
+161 2
+162 ×
+163 ABS
+164 RCL× “U”
+165 RCL “VR”
+166 X<>Y
+167 COMPLEX
+168 RTN
+
+@ ————————————————————
+@ USQRT: Square root with uncertainty
+@ Formula: σ = σ_input / (2√v)  (derivative of √x is 1/(2√x))
+@ Input: X = value±uncertainty (complex)
+@ Output: X = sqrt with propagated uncertainty
+@ ————————————————————
+169▸LBL “USQRT”
+170 FUNC 11
+171 COMPLEX
+172 STO “U”
+173 X<>Y
+174 SQRT
+175 STO “VR”
+176 2
+177 ×
+178 1/X
+179 RCL× “U”
+180 RCL “VR”
+181 X<>Y
+182 COMPLEX
+183 RTN
+
+@ ————————————————————
+@ UINV: Inverse (1/x) with uncertainty
+@ Formula: σ = σ_input / v²  (derivative of 1/x is -1/x²)
+@ Input: X = value±uncertainty (complex)
+@ Output: X = inverse with propagated uncertainty
+@ ————————————————————
+184▸LBL “UINV”
+185 FUNC 11
+186 COMPLEX
+187 STO “U”
+188 X<>Y
+189 STO “V”
+190 X↑2
+191 1/X
+192 RCL× “U”
+193 RCL “V”
+194 1/X
+195 X<>Y
+196 COMPLEX
+197 RTN
+
+@ ————————————————————
+@ ULN: Natural logarithm with uncertainty
+@ Formula: σ = σ_input / v  (derivative of ln(x) is 1/x)
+@ Input: X = value±uncertainty (complex)
+@ Output: X = ln with propagated uncertainty
+@ ————————————————————
+198▸LBL “ULN”
+199 FUNC 11
+200 COMPLEX
+201 STO “U”
+202 X<>Y
+203 STO “V”
+204 RCL “U”
+205 RCL÷ “V”
+206 RCL “V”
+207 LN
+208 X<>Y
+209 COMPLEX
+210 RTN
+
+@ ————————————————————
+@ UEXP: Exponential (e^x) with uncertainty
+@ Formula: σ = e^v × σ_input  (derivative of e^x is e^x)
+@ Input: X = value±uncertainty (complex)
+@ Output: X = e^x with propagated uncertainty
+@ ————————————————————
+211▸LBL “UEXP”
+212 FUNC 11
+213 COMPLEX
+214 STO “U”
+215 X<>Y
+216 E↑X
+217 STO “VR”
+218 RCL× “U”
+219 RCL “VR”
+220 X<>Y
+221 COMPLEX
+222 RTN
+
+@ ————————————————————
+@ UPOW: Power x^y with uncertainty in both x and y
+@ Formula: σ = |x^y| × √((y×σₓ/x)² + (ln(x)×σᵧ)²)
+@ Input: Y = base (x±σₓ), X = exponent (y±σᵧ)
+@ Output: X = x^y with propagated uncertainty
+@ ————————————————————
+223▸LBL “UPOW”
+224 FUNC 21
+225 STO “UA”
+226 X<>Y
+227 STO “UB”
+228 COMPLEX
+229 STO “U1”
+230 X<>Y
+231 STO “V1”
+232 RCL “UA”
+233 COMPLEX
+234 STO “U2”
+235 X<>Y
+236 STO “V2”
+237 RCL “V1”
+238 RCL “V2”
+239 Y↑X
+240 STO “VR”
+241 RCL “V2”
+242 RCL× “U1”
+243 RCL÷ “V1”
+244 X↑2
+245 STO “T1”
+246 RCL “V1”
+247 LN
+248 RCL× “U2”
+249 X↑2
+250 RCL+ “T1”
+251 SQRT
+252 RCL× “VR”
+253 ABS
+254 RCL “VR”
+255 X<>Y
+256 COMPLEX
+257 RTN
+
+@ ————————————————————
+@ USIN: Sine with uncertainty (auto-detects DEG/RAD mode)
+@ Formula: σ = |cos(v)| × σ_input × (π/180 if DEG mode)
+@ Input: X = angle±uncertainty (complex)
+@ Output: X = sin with propagated uncertainty
+@ ————————————————————
+258▸LBL “USIN”
+259 FUNC 11
+260 COMPLEX
+261 STO “U”
+262 X<>Y
+263 STO “V”
+264 COS
+265 ABS
+266 RCL× “U”
+267 XEQ “UACV”
+268 RCL “V”
+269 SIN
+270 X<>Y
+271 COMPLEX
+272 RTN
+
+@ ————————————————————
+@ UCOS: Cosine with uncertainty (auto-detects DEG/RAD mode)
+@ Formula: σ = |sin(v)| × σ_input × (π/180 if DEG mode)
+@ Input: X = angle±uncertainty (complex)
+@ Output: X = cos with propagated uncertainty
+@ ————————————————————
+273▸LBL “UCOS”
+274 FUNC 11
+275 COMPLEX
+276 STO “U”
+277 X<>Y
+278 STO “V”
+279 SIN
+280 ABS
+281 RCL× “U”
+282 XEQ “UACV”
+283 RCL “V”
+284 COS
+285 X<>Y
+286 COMPLEX
+287 RTN
+
+@ ————————————————————
+@ UTAN: Tangent with uncertainty (auto-detects DEG/RAD mode)
+@ Formula: σ = σ_input / cos²(v) × (π/180 if DEG mode)
+@ Input: X = angle±uncertainty (complex)
+@ Output: X = tan with propagated uncertainty
+@ ————————————————————
+288▸LBL “UTAN”
+289 FUNC 11
+290 COMPLEX
+291 STO “U”
+292 X<>Y
+293 STO “V”
+294 COS
+295 X↑2
+296 1/X
+297 RCL× “U”
+298 XEQ “UACV”
+299 RCL “V”
+300 TAN
+301 X<>Y
+302 COMPLEX
+303 RTN
+
+@ ————————————————————
+@ ULOG: Base-10 logarithm with uncertainty
+@ Formula: σ = σ_input / (v × ln(10))
+@ Input: X = value±uncertainty (complex)
+@ Output: X = log10 with propagated uncertainty
+@ ————————————————————
+304▸LBL “ULOG”
+305 FUNC 11
+306 COMPLEX
+307 STO “U”
+308 X<>Y
+309 STO “V”
+310 RCL “U”
+311 RCL÷ “V”
+312 10
+313 LN
+314 ÷
+315 RCL “V”
+316 LOG
+317 X<>Y
+318 COMPLEX
+319 RTN
+
+@ ————————————————————
+@ U10X: Power of 10 (10^x) with uncertainty
+@ Formula: σ = ln(10) × 10^v × σ_input
+@ Input: X = value±uncertainty (complex)
+@ Output: X = 10^x with propagated uncertainty
+@ ————————————————————
+320▸LBL “U10X”
+321 FUNC 11
+322 COMPLEX
+323 STO “U”
+324 X<>Y
+325 10↑X
+326 STO “VR”
+327 10
+328 LN
+329 RCL× “U”
+330 RCL× “VR”
+331 RCL “VR”
+332 X<>Y
+333 COMPLEX
+334 RTN
+
+@ ============================================================
+@ MENU PROGRAMS
+@ ============================================================
+
+335▸LBL “U1”
+336 CLMENU
+337 “UEN”
+338 KEY 1 XEQ “UEN”
+339 “UVW”
+340 KEY 2 XEQ “UVW”
+341 “UADD”
+342 KEY 3 XEQ “UADD”
+343 “USUB”
+344 KEY 4 XEQ “USUB”
+345 “UMUL”
+346 KEY 5 XEQ “UMUL”
+347 “UDIV”
+348 KEY 6 XEQ “UDIV”
+349 MENU
+350 STOP
+351 GTO “U1”
+352 END
+
+353▸LBL “U2”
+354 CLMENU
+355 “USQ”
+356 KEY 1 XEQ “USQ”
+357 “USQRT”
+358 KEY 2 XEQ “USQRT”
+359 “UINV”
+360 KEY 3 XEQ “UINV”
+361 “ULN”
+362 KEY 4 XEQ “ULN”
+363 “UEXP”
+364 KEY 5 XEQ “UEXP”
+365 “UPOW”
+366 KEY 6 XEQ “UPOW”
+367 MENU
+368 STOP
+369 GTO “U2”
+370 END
+
+371▸LBL “U3”
+372 CLMENU
+373 “USIN”
+374 KEY 1 XEQ “USIN”
+375 “UCOS”
+376 KEY 2 XEQ “UCOS”
+377 “UTAN”
+378 KEY 3 XEQ “UTAN”
+379 “ULOG”
+380 KEY 4 XEQ “ULOG”
+381 “U10X”
+382 KEY 5 XEQ “U10X”
+383 “USPL”
+384 KEY 6 XEQ “USPL”
+385 MENU
+386 STOP
+387 GTO “U3”
+388 END
